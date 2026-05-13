@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ระบบจัดการไปรษณีย์</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
+    .bg-navy { background-color: #0f172a; }
+    .menu-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); cursor: pointer; display: flex; align-items: center; gap: 16px; }
+  </style>
+</head>
+<body class="p-4">
+  <div id="loading" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mb-4"></div>
+    <p id="loadingText" class="font-bold text-navy">กำลังเชื่อมต่อ LINE...</p>
+  </div>
+
+  <div id="view-menu" class="max-w-md mx-auto mt-4 hidden">
+    <div class="text-center mb-8">
+      <div class="w-16 h-16 bg-navy rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fa-solid fa-envelope text-white text-2xl"></i></div>
+      <h1 class="text-xl font-bold text-navy">ระบบจัดการไปรษณีย์</h1>
+      <p class="text-xs text-green-500 mt-1 font-bold" id="statusText">เชื่อมต่อสำเร็จ</p>
+    </div>
+    <div class="space-y-4">
+      <div class="menu-card" onclick="openPage('task')"><i class="fa-solid fa-clipboard-check text-green-500 text-xl"></i><div><h3 class="font-bold">งานประจำวัน</h3><p class="text-xs text-gray-400">ส่งรายงานผลงาน</p></div></div>
+      <div class="menu-card" onclick="openPage('register')"><i class="fa-solid fa-user-plus text-red-500 text-xl"></i><div><h3 class="font-bold">ลงทะเบียน</h3><p class="text-xs text-gray-400">สำหรับผู้ใช้ใหม่</p></div></div>
+      <div class="menu-card" onclick="openPage('edit')"><i class="fa-solid fa-user-pen text-blue-500 text-xl"></i><div><h3 class="font-bold">แก้ไขข้อมูล Profile</h3><p class="text-xs text-gray-400">อัปเดตข้อมูลส่วนตัว</p></div></div>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ นำ Web App URL ของคุณมาใส่ที่นี่ครับ (ลบข้อความภาษาไทยออกแล้ววางลิงก์เลย)
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyh0M9yct9EfWfAV3OA57B7zeCoxKmG3jyR6xwpNEfsuUr70sLIK0jcwWWrEB4ucgEd/exec"; 
+    const LIFF_ID = "2009830500-VcZJyAcM";
+    
+    let currentUid = "";
+
+    // ฟังก์ชันพระเอกที่ใช้คุยกับ Google หลังบ้าน
+    async function fetchAPI(action, data = {}) {
+      const response = await fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // ทะลวงระบบป้องกัน CORS
+        body: JSON.stringify({ action: action, ...data })
+      });
+      return await response.json();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      liff.init({ liffId: LIFF_ID }).then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          liff.getProfile().then(profile => {
+            currentUid = profile.userId;
+            document.getElementById('statusText').innerText = "เชื่อมต่อรหัส: " + currentUid.substring(0,8);
+            
+            // ตรวจสอบว่ากดปุ่มมาจาก Flex Message หน้าไหน
+            const params = new URLSearchParams(window.location.search);
+            const page = params.get('page');
+            
+            if (page) openPage(page);
+            else {
+              document.getElementById('loading').classList.add('hidden');
+              document.getElementById('view-menu').classList.remove('hidden');
+            }
+          });
+        }
+      });
+    });
+
+    // ทดสอบดึงข้อมูล (เอาไปใช้สร้างฟอร์มต่อได้เลยครับ)
+    function openPage(pageType) {
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('loadingText').innerText = "กำลังดึงข้อมูล...";
+      
+      fetchAPI('getUserData', { uid: currentUid }).then(user => {
+        document.getElementById('loading').classList.add('hidden');
+        if(user) {
+          Swal.fire('สำเร็จ', 'พบข้อมูลของคุณ: ' + user.fullName, 'success').then(() => location.reload());
+          // *** เดี๋ยวเราค่อยเอาฟอร์ม HTML ของจริงมาวางต่อในขั้นถัดไปครับ ***
+        } else {
+          Swal.fire('แจ้งเตือน', 'ยังไม่พบข้อมูล กรุณาลงทะเบียน', 'info').then(() => location.reload());
+        }
+      });
+    }
+  </script>
+</body>
+</html>
