@@ -2,6 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ระบบจัดการไปรษณีย์</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -10,83 +11,215 @@
   <style>
     body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
     .bg-navy { background-color: #0f172a; }
-    .menu-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); cursor: pointer; display: flex; align-items: center; gap: 16px; }
+    .menu-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); cursor: pointer; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
   </style>
 </head>
 <body class="p-4">
-  <div id="loading" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+
+  <!-- ================= OVERLAY LOADING ================= -->
+  <div id="loading" class="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center">
     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mb-4"></div>
-    <p id="loadingText" class="font-bold text-navy">กำลังเชื่อมต่อ LINE...</p>
+    <p id="loadingText" class="font-bold text-navy">กำลังเตรียมระบบ...</p>
   </div>
 
+  <!-- ================= หน้าที่ 1: เมนูหลัก ================= -->
   <div id="view-menu" class="max-w-md mx-auto mt-4 hidden">
     <div class="text-center mb-8">
       <div class="w-16 h-16 bg-navy rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fa-solid fa-envelope text-white text-2xl"></i></div>
       <h1 class="text-xl font-bold text-navy">ระบบจัดการไปรษณีย์</h1>
-      <p class="text-xs text-green-500 mt-1 font-bold" id="statusText">เชื่อมต่อสำเร็จ</p>
+      <p class="text-xs text-green-600 mt-1 font-bold" id="statusText">รอการเชื่อมต่อ...</p>
     </div>
-    <div class="space-y-4">
-      <div class="menu-card" onclick="openPage('task')"><i class="fa-solid fa-clipboard-check text-green-500 text-xl"></i><div><h3 class="font-bold">งานประจำวัน</h3><p class="text-xs text-gray-400">ส่งรายงานผลงาน</p></div></div>
-      <div class="menu-card" onclick="openPage('register')"><i class="fa-solid fa-user-plus text-red-500 text-xl"></i><div><h3 class="font-bold">ลงทะเบียน</h3><p class="text-xs text-gray-400">สำหรับผู้ใช้ใหม่</p></div></div>
-      <div class="menu-card" onclick="openPage('edit')"><i class="fa-solid fa-user-pen text-blue-500 text-xl"></i><div><h3 class="font-bold">แก้ไขข้อมูล Profile</h3><p class="text-xs text-gray-400">อัปเดตข้อมูลส่วนตัว</p></div></div>
-    </div>
+    <div class="menu-card" onclick="openPage('task')"><i class="fa-solid fa-clipboard-check text-green-500 text-xl"></i><div><h3 class="font-bold">งานประจำวัน</h3><p class="text-xs text-gray-400">รายงานผลการปฏิบัติงาน</p></div></div>
+    <div class="menu-card" onclick="openPage('register')"><i class="fa-solid fa-user-plus text-red-500 text-xl"></i><div><h3 class="font-bold">ลงทะเบียน</h3><p class="text-xs text-gray-400">สำหรับเข้าใช้งานครั้งแรก</p></div></div>
+    <div class="menu-card" onclick="openPage('edit')"><i class="fa-solid fa-user-pen text-blue-500 text-xl"></i><div><h3 class="font-bold">แก้ไขข้อมูล</h3><p class="text-xs text-gray-400">อัปเดตข้อมูลส่วนตัวของคุณ</p></div></div>
   </div>
 
-  <script>
-    // ⚠️ นำ Web App URL ของคุณมาใส่ที่นี่ครับ (ลบข้อความภาษาไทยออกแล้ววางลิงก์เลย)
-    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyh0M9yct9EfWfAV3OA57B7zeCoxKmG3jyR6xwpNEfsuUr70sLIK0jcwWWrEB4ucgEd/exec"; 
-    const LIFF_ID = "2009830500-VcZJyAcM";
-    
-    let currentUid = "";
+  <!-- ================= หน้าที่ 2: ฟอร์มโปรไฟล์ ================= -->
+  <div id="view-form" class="max-w-md mx-auto hidden bg-white p-6 rounded-2xl shadow-sm">
+    <button onclick="goHome()" class="text-sm text-gray-400 mb-4"><i class="fa-solid fa-arrow-left"></i> กลับหน้าหลัก</button>
+    <h2 id="formTitle" class="font-bold mb-4 text-navy text-lg">จัดการโปรไฟล์</h2>
+    <form id="profileForm" class="space-y-4">
+      <input type="text" id="empId" placeholder="รหัสพนักงาน" required class="w-full border p-3 rounded-lg outline-none bg-gray-50">
+      <input type="text" id="fullName" placeholder="ชื่อ-สกุล" required class="w-full border p-3 rounded-lg outline-none bg-gray-50">
+      <input type="text" id="deptInput" placeholder="รหัสที่ทำการ (ใส่ลูกน้ำคั่น เช่น 80000, 80001)" class="w-full border p-3 rounded-lg outline-none bg-gray-50 text-sm">
+      <div class="flex gap-2">
+        <div class="w-1/2"><label class="text-xs text-gray-500">เวลาเข้างาน</label><input type="time" id="timeIn" required class="w-full border p-3 rounded-lg outline-none bg-gray-50"></div>
+        <div class="w-1/2"><label class="text-xs text-gray-500">เวลาออกงาน</label><input type="time" id="timeOut" required class="w-full border p-3 rounded-lg outline-none bg-gray-50"></div>
+      </div>
+      <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg font-bold shadow-md">บันทึกข้อมูล</button>
+    </form>
+  </div>
 
-    // ฟังก์ชันพระเอกที่ใช้คุยกับ Google หลังบ้าน
-    async function fetchAPI(action, data = {}) {
-      const response = await fetch(GAS_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // ทะลวงระบบป้องกัน CORS
-        body: JSON.stringify({ action: action, ...data })
-      });
-      return await response.json();
+  <!-- ================= หน้าที่ 3: ฟอร์มส่งงาน ================= -->
+  <div id="view-task" class="max-w-md mx-auto hidden bg-white p-6 rounded-2xl shadow-sm">
+    <button onclick="goHome()" class="text-sm text-gray-400 mb-4"><i class="fa-solid fa-arrow-left"></i> กลับหน้าหลัก</button>
+    <h2 class="font-bold mb-4 text-navy text-lg">รายงานผลการปฏิบัติงาน</h2>
+    <form id="taskForm" class="space-y-4">
+      <select id="taskSelect" required class="w-full border p-3 rounded-lg outline-none bg-gray-50"><option value="">-- เลือกงาน --</option></select>
+      <select id="officeSelect" required class="w-full border p-3 rounded-lg outline-none bg-gray-50"><option value="">-- เลือกที่ทำการ --</option></select>
+      <div class="border-2 border-dashed border-gray-300 p-8 text-center rounded-lg cursor-pointer hover:bg-gray-50" onclick="document.getElementById('taskImage').click()">
+        <i class="fa-solid fa-camera text-3xl text-gray-400 mb-2"></i><p class="text-sm font-bold text-green-600">แตะเพื่อถ่ายรูป</p>
+        <input id="taskImage" type="file" accept="image/*" class="hidden" onchange="processImage(event)">
+      </div>
+      <img id="imgPreview" class="hidden w-full rounded-lg shadow-sm border mt-2">
+      <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white p-3 rounded-lg font-bold shadow-md">ส่งรายงาน</button>
+    </form>
+  </div>
+
+  <!-- ================= ระบบ Script (ลื่นปื๊ด 100%) ================= -->
+  <script>
+    // ⚠️⚠️ นำ Web App URL ของ Google Apps Script มาใส่ตรงนี้ ⚠️⚠️
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyh0M9yct9EfWfAV3OA57B7zeCoxKmG3jyR6xwpNEfsuUr70sLIK0jcwWWrEB4ucgEd/exec"; 
+    
+    const LIFF_ID = "2009830500-VcZJyAcM";
+    let myUid = "", myName = "", currentImgBase64 = "";
+
+    // ฟังก์ชันติดปีก ทะลวงกำแพง Google (เรียก API)
+    async function callGAS(actionName, payloadData = {}) {
+      try {
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: actionName, uid: myUid, payload: payloadData })
+        });
+        return await response.json();
+      } catch (err) {
+        console.error(err); return null;
+      }
     }
 
+    // เปิดแอปปุ๊บ ทำงานปั๊บ
     document.addEventListener("DOMContentLoaded", () => {
       liff.init({ liffId: LIFF_ID }).then(() => {
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        } else {
+        if (!liff.isLoggedIn()) { liff.login(); } 
+        else {
           liff.getProfile().then(profile => {
-            currentUid = profile.userId;
-            document.getElementById('statusText').innerText = "เชื่อมต่อรหัส: " + currentUid.substring(0,8);
+            myUid = profile.userId;
+            document.getElementById('statusText').innerText = "✅ เชื่อมต่อแล้ว (" + myUid.substring(0,6) + ")";
             
-            // ตรวจสอบว่ากดปุ่มมาจาก Flex Message หน้าไหน
-            const params = new URLSearchParams(window.location.search);
-            const page = params.get('page');
+            // เช็คว่ากดมาจากปุ่มไหนใน LINE
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetPage = urlParams.get('page');
             
-            if (page) openPage(page);
-            else {
-              document.getElementById('loading').classList.add('hidden');
-              document.getElementById('view-menu').classList.remove('hidden');
-            }
+            if (targetPage) openPage(targetPage);
+            else showView('view-menu'); // เข้าผ่าน Rich Menu
           });
         }
       });
     });
 
-    // ทดสอบดึงข้อมูล (เอาไปใช้สร้างฟอร์มต่อได้เลยครับ)
-    function openPage(pageType) {
+    // ระบบสลับหน้าจอ
+    function showView(viewId) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('view-menu').classList.add('hidden');
+      document.getElementById('view-form').classList.add('hidden');
+      document.getElementById('view-task').classList.add('hidden');
+      document.getElementById(viewId).classList.remove('hidden');
+    }
+    function goHome() { window.location.href = window.location.pathname; } // รีเฟรชล้างค่ากลับหน้าเมนู
+
+    // ระบบเตรียมข้อมูลแต่ละหน้า
+    function openPage(page) {
       document.getElementById('loading').classList.remove('hidden');
-      document.getElementById('loadingText').innerText = "กำลังดึงข้อมูล...";
-      
-      fetchAPI('getUserData', { uid: currentUid }).then(user => {
-        document.getElementById('loading').classList.add('hidden');
-        if(user) {
-          Swal.fire('สำเร็จ', 'พบข้อมูลของคุณ: ' + user.fullName, 'success').then(() => location.reload());
-          // *** เดี๋ยวเราค่อยเอาฟอร์ม HTML ของจริงมาวางต่อในขั้นถัดไปครับ ***
-        } else {
-          Swal.fire('แจ้งเตือน', 'ยังไม่พบข้อมูล กรุณาลงทะเบียน', 'info').then(() => location.reload());
+      document.getElementById('loadingText').innerText = "กำลังดึงข้อมูลส่วนตัว...";
+
+      callGAS('getUserData').then(userData => {
+        if (page === 'register' || page === 'edit') {
+          document.getElementById('formTitle').innerText = (page === 'register' ? "ลงทะเบียน" : "แก้ไขข้อมูล");
+          if (userData) {
+            document.getElementById('empId').value = userData.empId || "";
+            document.getElementById('fullName').value = userData.fullName || "";
+            document.getElementById('deptInput').value = userData.postalCodes || "";
+            document.getElementById('timeIn').value = userData.timeIn || "";
+            document.getElementById('timeOut').value = userData.timeOut || "";
+          }
+          showView('view-form');
+        } 
+        else if (page === 'task') {
+          if (!userData) {
+            Swal.fire('แจ้งเตือน', 'กรุณาลงทะเบียนก่อนใช้งานครับ', 'warning').then(() => openPage('register'));
+            return;
+          }
+          myName = userData.fullName;
+          
+          // โหลดที่ทำการของ User
+          let officeDropdown = document.getElementById('officeSelect');
+          officeDropdown.innerHTML = '<option value="">-- เลือกที่ทำการ --</option>';
+          if(userData.postalCodes) {
+            userData.postalCodes.split(',').forEach(c => officeDropdown.innerHTML += `<option value="${c.trim()}">${c.trim()}</option>`);
+          }
+
+          // โหลดชื่องานจากหลังบ้าน
+          document.getElementById('loadingText').innerText = "กำลังโหลดรายการงาน...";
+          callGAS('getActiveTasks').then(tasks => {
+            let taskDropdown = document.getElementById('taskSelect');
+            taskDropdown.innerHTML = '<option value="">-- เลือกงาน --</option>';
+            if(tasks) tasks.forEach(t => taskDropdown.innerHTML += `<option value="${t.name}">${t.name}</option>`);
+            showView('view-task');
+          });
         }
       });
     }
+
+    // จัดการรูปภาพ (ย่อขนาดอัตโนมัติ)
+    function processImage(event) {
+      const file = event.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const max_size = 800; let w = img.width, h = img.height;
+          if (w > h) { if (w > max_size) { h *= max_size / w; w = max_size; } } else { if (h > max_size) { w *= max_size / h; h = max_size; } }
+          canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          currentImgBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+          document.getElementById('imgPreview').src = canvas.toDataURL('image/jpeg', 0.8);
+          document.getElementById('imgPreview').classList.remove('hidden');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // กดปุ่ม บันทึกโปรไฟล์
+    document.getElementById('profileForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('loadingText').innerText = "กำลังบันทึกข้อมูล...";
+      
+      const payload = {
+        empId: document.getElementById('empId').value,
+        fullName: document.getElementById('fullName').value,
+        postalCodes: document.getElementById('deptInput').value,
+        timeIn: document.getElementById('timeIn').value,
+        timeOut: document.getElementById('timeOut').value
+      };
+      
+      callGAS('saveUserData', payload).then(() => {
+        Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success').then(() => goHome());
+      });
+    });
+
+    // กดปุ่ม ส่งรายงาน
+    document.getElementById('taskForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!currentImgBase64) return Swal.fire('แจ้งเตือน', 'กรุณาถ่ายรูปรายงานครับ', 'warning');
+      
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('loadingText').innerText = "กำลังอัปโหลดงาน...";
+      
+      const payload = {
+        userName: myName,
+        taskName: document.getElementById('taskSelect').value,
+        zipCode: document.getElementById('officeSelect').value,
+        imageBase64: currentImgBase64,
+        mimeType: 'image/jpeg'
+      };
+      
+      callGAS('submitReport', payload).then(() => {
+        Swal.fire('สำเร็จ', 'ส่งรายงานเรียบร้อย', 'success').then(() => goHome());
+      });
+    });
   </script>
 </body>
 </html>
