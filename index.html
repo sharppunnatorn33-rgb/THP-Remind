@@ -41,12 +41,20 @@
     <form id="profileForm" class="space-y-4">
       <input type="text" id="empId" placeholder="รหัสพนักงาน" required class="w-full border p-3 rounded-lg outline-none bg-gray-50">
       <input type="text" id="fullName" placeholder="ชื่อ-สกุล" required class="w-full border p-3 rounded-lg outline-none bg-gray-50">
-      <input type="text" id="deptInput" placeholder="รหัสที่ทำการ (ใส่ลูกน้ำคั่น เช่น 80000, 80001)" class="w-full border p-3 rounded-lg outline-none bg-gray-50 text-sm">
+      
+      <!-- ระบบค้นหาที่ทำการ (นำกลับมาให้แล้วครับ) -->
+      <div class="relative border p-3 rounded-lg bg-gray-50">
+        <label class="text-xs text-gray-500 mb-2 block">ที่ทำการที่รับผิดชอบ</label>
+        <div id="selectedChips" class="flex flex-wrap gap-2 mb-2"></div>
+        <input type="text" id="deptSearch" placeholder="🔍 พิมพ์รหัสหรือชื่อที่ทำการ..." class="w-full border p-2 rounded outline-none text-sm bg-white">
+        <div id="deptDropdown" class="absolute z-10 w-full mt-1 left-0 bg-white border rounded-lg shadow-xl max-h-48 overflow-y-auto hidden"></div>
+      </div>
+
       <div class="flex gap-2">
         <div class="w-1/2"><label class="text-xs text-gray-500">เวลาเข้างาน</label><input type="time" id="timeIn" required class="w-full border p-3 rounded-lg outline-none bg-gray-50"></div>
         <div class="w-1/2"><label class="text-xs text-gray-500">เวลาออกงาน</label><input type="time" id="timeOut" required class="w-full border p-3 rounded-lg outline-none bg-gray-50"></div>
       </div>
-      <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg font-bold shadow-md">บันทึกข้อมูล</button>
+      <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg font-bold shadow-md mt-2">บันทึกข้อมูล</button>
     </form>
   </div>
 
@@ -66,15 +74,18 @@
     </form>
   </div>
 
-  <!-- ================= ระบบ Script (ลื่นปื๊ด 100%) ================= -->
+  <!-- ================= ระบบ Script ================= -->
   <script>
     // ⚠️⚠️ นำ Web App URL ของ Google Apps Script มาใส่ตรงนี้ ⚠️⚠️
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyh0M9yct9EfWfAV3OA57B7zeCoxKmG3jyR6xwpNEfsuUr70sLIK0jcwWWrEB4ucgEd/exec"; 
     
     const LIFF_ID = "2009830500-VcZJyAcM";
     let myUid = "", myName = "", currentImgBase64 = "";
+    
+    // ตัวแปรสำหรับระบบค้นหา
+    let departmentsData = [];
+    let selectedDepts = [];
 
-    // ฟังก์ชันติดปีก ทะลวงกำแพง Google (เรียก API)
     async function callGAS(actionName, payloadData = {}) {
       try {
         const response = await fetch(GAS_URL, {
@@ -83,12 +94,9 @@
           body: JSON.stringify({ action: actionName, uid: myUid, payload: payloadData })
         });
         return await response.json();
-      } catch (err) {
-        console.error(err); return null;
-      }
+      } catch (err) { console.error(err); return null; }
     }
 
-    // เปิดแอปปุ๊บ ทำงานปั๊บ
     document.addEventListener("DOMContentLoaded", () => {
       liff.init({ liffId: LIFF_ID }).then(() => {
         if (!liff.isLoggedIn()) { liff.login(); } 
@@ -97,18 +105,17 @@
             myUid = profile.userId;
             document.getElementById('statusText').innerText = "✅ เชื่อมต่อแล้ว (" + myUid.substring(0,6) + ")";
             
-            // เช็คว่ากดมาจากปุ่มไหนใน LINE
             const urlParams = new URLSearchParams(window.location.search);
             const targetPage = urlParams.get('page');
             
             if (targetPage) openPage(targetPage);
-            else showView('view-menu'); // เข้าผ่าน Rich Menu
+            else showView('view-menu');
           });
         }
       });
+      setupSearch(); // เปิดใช้งานระบบค้นหา
     });
 
-    // ระบบสลับหน้าจอ
     function showView(viewId) {
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('view-menu').classList.add('hidden');
@@ -116,52 +123,106 @@
       document.getElementById('view-task').classList.add('hidden');
       document.getElementById(viewId).classList.remove('hidden');
     }
-    function goHome() { window.location.href = window.location.pathname; } // รีเฟรชล้างค่ากลับหน้าเมนู
+    function goHome() { window.location.href = window.location.pathname; }
 
     // ระบบเตรียมข้อมูลแต่ละหน้า
     function openPage(page) {
       document.getElementById('loading').classList.remove('hidden');
-      document.getElementById('loadingText').innerText = "กำลังดึงข้อมูลส่วนตัว...";
+      document.getElementById('loadingText').innerText = "กำลังโหลดข้อมูล...";
 
-      callGAS('getUserData').then(userData => {
-        if (page === 'register' || page === 'edit') {
-          document.getElementById('formTitle').innerText = (page === 'register' ? "ลงทะเบียน" : "แก้ไขข้อมูล");
+      if (page === 'register' || page === 'edit') {
+        document.getElementById('formTitle').innerText = (page === 'register' ? "ลงทะเบียน" : "แก้ไขข้อมูล");
+        
+        // ดึงทั้งแผนกและข้อมูล User พร้อมกัน
+        Promise.all([ callGAS('getDepartmentsData'), callGAS('getUserData') ]).then(([depts, userData]) => {
+          if (depts) departmentsData = depts;
+          
           if (userData) {
             document.getElementById('empId').value = userData.empId || "";
             document.getElementById('fullName').value = userData.fullName || "";
-            document.getElementById('deptInput').value = userData.postalCodes || "";
             document.getElementById('timeIn').value = userData.timeIn || "";
             document.getElementById('timeOut').value = userData.timeOut || "";
+            
+            // นำรหัสไปรษณีย์เดิมมาแปลงเป็น Chip
+            selectedDepts = [];
+            if (userData.postalCodes) {
+              userData.postalCodes.split(',').forEach(code => {
+                let cleanCode = code.trim();
+                let found = departmentsData.find(d => d.code === cleanCode);
+                if (found) selectedDepts.push(found);
+                else selectedDepts.push({code: cleanCode, name: ""}); // เผื่อกรณีหาไม่เจอในฐานข้อมูล
+              });
+            }
+            renderChips();
           }
           showView('view-form');
-        } 
-        else if (page === 'task') {
-          if (!userData) {
-            Swal.fire('แจ้งเตือน', 'กรุณาลงทะเบียนก่อนใช้งานครับ', 'warning').then(() => openPage('register'));
-            return;
-          }
+        });
+      } 
+      else if (page === 'task') {
+        callGAS('getUserData').then(userData => {
+          if (!userData) return Swal.fire('แจ้งเตือน', 'กรุณาลงทะเบียนก่อนใช้งานครับ', 'warning').then(() => openPage('register'));
           myName = userData.fullName;
           
-          // โหลดที่ทำการของ User
           let officeDropdown = document.getElementById('officeSelect');
           officeDropdown.innerHTML = '<option value="">-- เลือกที่ทำการ --</option>';
-          if(userData.postalCodes) {
-            userData.postalCodes.split(',').forEach(c => officeDropdown.innerHTML += `<option value="${c.trim()}">${c.trim()}</option>`);
-          }
+          if(userData.postalCodes) userData.postalCodes.split(',').forEach(c => officeDropdown.innerHTML += `<option value="${c.trim()}">${c.trim()}</option>`);
 
-          // โหลดชื่องานจากหลังบ้าน
-          document.getElementById('loadingText').innerText = "กำลังโหลดรายการงาน...";
           callGAS('getActiveTasks').then(tasks => {
             let taskDropdown = document.getElementById('taskSelect');
             taskDropdown.innerHTML = '<option value="">-- เลือกงาน --</option>';
             if(tasks) tasks.forEach(t => taskDropdown.innerHTML += `<option value="${t.name}">${t.name}</option>`);
             showView('view-task');
           });
+        });
+      }
+    }
+
+    // ================= ระบบค้นหาและป้ายกำกับ (Chips) =================
+    function setupSearch() {
+      const searchInput = document.getElementById('deptSearch');
+      const dropdown = document.getElementById('deptDropdown');
+
+      searchInput.addEventListener('input', (e) => {
+        const val = e.target.value.toLowerCase().trim();
+        dropdown.innerHTML = '';
+        if (!val) return dropdown.classList.add('hidden');
+
+        const filtered = departmentsData.filter(d => d.code.includes(val) || d.name.includes(val));
+        if (filtered.length > 0) {
+          dropdown.classList.remove('hidden');
+          filtered.forEach(dept => {
+            const div = document.createElement('div');
+            div.className = "p-3 hover:bg-gray-100 cursor-pointer text-sm border-b";
+            div.innerHTML = `<span class="font-bold text-navy">${dept.code}</span> - ${dept.name}`;
+            div.onclick = () => { addChip(dept); searchInput.value = ''; dropdown.classList.add('hidden'); };
+            dropdown.appendChild(div);
+          });
+        } else {
+          dropdown.classList.add('hidden');
         }
       });
     }
 
-    // จัดการรูปภาพ (ย่อขนาดอัตโนมัติ)
+    function addChip(dept) {
+      if (!selectedDepts.find(d => d.code === dept.code)) { selectedDepts.push(dept); renderChips(); }
+    }
+
+    function removeChip(code) {
+      selectedDepts = selectedDepts.filter(d => d.code !== code); renderChips();
+    }
+
+    function renderChips() {
+      const container = document.getElementById('selectedChips');
+      container.innerHTML = '';
+      selectedDepts.forEach(dept => {
+        const span = document.createElement('span');
+        span.className = "bg-navy text-white px-3 py-1.5 rounded-full text-xs flex items-center gap-2 shadow-sm";
+        span.innerHTML = `${dept.code} <i class="fa-solid fa-xmark cursor-pointer text-red-400 hover:text-red-600" onclick="removeChip('${dept.code}')"></i>`;
+        container.appendChild(span);
+      });
+    }
+
+    // จัดการรูปภาพ
     function processImage(event) {
       const file = event.target.files[0]; if (!file) return;
       const reader = new FileReader();
@@ -181,26 +242,26 @@
       reader.readAsDataURL(file);
     }
 
-    // กดปุ่ม บันทึกโปรไฟล์
+    // กดบันทึกข้อมูลส่วนตัว
     document.getElementById('profileForm').addEventListener('submit', (e) => {
       e.preventDefault();
+      if (selectedDepts.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกที่ทำการอย่างน้อย 1 แห่ง', 'warning');
+      
       document.getElementById('loading').classList.remove('hidden');
       document.getElementById('loadingText').innerText = "กำลังบันทึกข้อมูล...";
       
       const payload = {
         empId: document.getElementById('empId').value,
         fullName: document.getElementById('fullName').value,
-        postalCodes: document.getElementById('deptInput').value,
+        postalCodes: selectedDepts.map(d => d.code).join(', '), // นำข้อมูล Chips มารวมกันด้วยลูกน้ำ
         timeIn: document.getElementById('timeIn').value,
         timeOut: document.getElementById('timeOut').value
       };
       
-      callGAS('saveUserData', payload).then(() => {
-        Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success').then(() => goHome());
-      });
+      callGAS('saveUserData', payload).then(() => Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success').then(() => goHome()));
     });
 
-    // กดปุ่ม ส่งรายงาน
+    // กดส่งรายงาน
     document.getElementById('taskForm').addEventListener('submit', (e) => {
       e.preventDefault();
       if (!currentImgBase64) return Swal.fire('แจ้งเตือน', 'กรุณาถ่ายรูปรายงานครับ', 'warning');
@@ -216,9 +277,7 @@
         mimeType: 'image/jpeg'
       };
       
-      callGAS('submitReport', payload).then(() => {
-        Swal.fire('สำเร็จ', 'ส่งรายงานเรียบร้อย', 'success').then(() => goHome());
-      });
+      callGAS('submitReport', payload).then(() => Swal.fire('สำเร็จ', 'ส่งรายงานเรียบร้อย', 'success').then(() => goHome()));
     });
   </script>
 </body>
