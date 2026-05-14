@@ -258,8 +258,15 @@
         timeOut: document.getElementById('timeOut').value
       };
       
-      callGAS('saveUserData', payload).then(() => Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success').then(() => goHome()));
-    });
+     callGAS('submitReport', payload).then((res) => {
+        document.getElementById('loading').classList.add('hidden');
+        if (res && res.status === 'success') {
+          Swal.fire('สำเร็จ', 'ส่งรายงานและบันทึกรูปลง Sheet เรียบร้อย', 'success').then(() => goHome());
+        } else {
+          // ถ้าหลังบ้าน Error จะโชว์ขึ้นมาบนหน้าจอเลย จะได้แก้ถูกจุดครับ
+          Swal.fire('ข้อผิดพลาด', 'บันทึกไม่สำเร็จ: ' + (res ? res.message : 'ไม่ทราบสาเหตุ'), 'error');
+        }
+      });
 
     // กดส่งรายงาน
     document.getElementById('taskForm').addEventListener('submit', (e) => {
